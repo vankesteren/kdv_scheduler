@@ -1,0 +1,11 @@
+slot,alice,bob,carol,dean,erica,flynn,gertrude,harry,irene,john
+maandag_morgen,0,0,1,0,0,1,0,0,0,0
+maandag_middag,0,0,1,0,0,1,0,0,0,0
+dinsdag_morgen,0,1,0,0,0,0,0,0,1,0
+dinsdag_middag,0,0,0,0,0,0,1,1,0,0
+woensdag_morgen,0,0,0,1,0,0,0,0,0,1
+woensdag_middag,1,0,0,1,0,0,0,0,0,0
+donderdag_morgen,0,1,0,0,1,0,0,0,0,0
+donderdag_middag,0,0,0,0,1,0,1,0,0,0
+vrijdag_morgen,1,0,0,0,0,0,0,0,1,0
+vrijdag_middag,0,0,0,0,0,0,0,1,0,1
