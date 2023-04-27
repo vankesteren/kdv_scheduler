@@ -1,0 +1,6 @@
+output_folder: output_files
+slots_per_person_max: 2 # maximum number of slots per person
+persons_per_slot_min: 2 # minimum number of persons per slot
+persons_per_slot_max: 2 # maximum number of persons per slot
+experience_months: 6 # number of months of experience after which a person is experienced
+min_experienced_persons: 1 # minimum number of experienced persons per slot
