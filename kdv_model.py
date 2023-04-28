@@ -33,7 +33,7 @@ class KDVModel:
         self.prefs = pd.read_csv(preferences_file, index_col="slot")
         self.slot_names = self.prefs.index.to_list()
         self.person_names = self.prefs.columns.to_list()
-        self.prefs_normed = self.prefs / self.prefs.sum(axis=0) * len(self.slot_names)
+        self.prefs_normed = self.prefs / self.prefs.sum(axis=0) #* len(self.slot_names)
         self.prefs_np = self.prefs_normed.to_numpy()
 
     def load_experiences(self, experiences_file: str) -> None:
@@ -44,7 +44,7 @@ class KDVModel:
 
     # Model setup methods
     def set_variables(self) -> None:
-        self.var_names = np.array([[f"{n} - {s}" for n in self.person_names] for s in self.slot_names])
+        self.var_names = np.array([[f"{n}_{s}" for n in self.person_names] for s in self.slot_names])
         self.assignments = self.model.addMVar(self.prefs.shape, vtype="B", name=self.var_names)
         self.slots_per_person = self.assignments.sum(axis=0)
         self.persons_per_slot = self.assignments.sum(axis=1)
@@ -103,12 +103,12 @@ class KDVModel:
 
     def slot_desirability(self) -> pd.DataFrame:
         """if everyone would fill out the same number everywhere, this would be 1"""
-        return pd.DataFrame({"desirability": self.prefs_normed.sum(1) / len(self.person_names)})
+        return pd.DataFrame({"desirability": self.prefs_normed.sum(axis=1) / len(self.person_names) * len(self.slot_names)})
     
     def person_flexibility(self) -> pd.DataFrame:
         """0.1 = only one slot available, 1.0 = all available, no preference"""
-        return pd.DataFrame({"flexibility": 1 / self.prefs_normed.max(0)})
-
+        return pd.DataFrame({"flexibility": 1 / self.prefs_normed.max(axis=0)})
+    
     # Storing model output
     def save_output(self) -> str:
         """Stores model output and returns the folder name of the stored output"""
