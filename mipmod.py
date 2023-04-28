@@ -1,6 +1,6 @@
-# KDV model object
-# last edited 20230427 by @vankesteren
-import gurobipy as gb
+# KDV model object, open source version
+# last edited 20230428 by @vankesteren
+import mip
 import yaml
 import pandas as pd
 import numpy as np
@@ -10,7 +10,7 @@ import os
 class KDVModel:
     def __init__(self, config_file: str, preferences_file: str, experiences_file: str):
         # instantiate gurobi model
-        self.model = gb.Model("KDVModel")
+        self.model = mip.Model("KDVModel", solver_name="CBC")
 
         # load data
         self.load_config(config_file)
@@ -44,14 +44,14 @@ class KDVModel:
     # Model setup methods
     def set_variables(self) -> None:
         self.var_names = np.array([[f"{n}_{s}" for n in self.person_names] for s in self.slot_names])
-        self.assignments = self.model.addMVar(self.prefs.shape, vtype="B", name=self.var_names)
+        self.assignments = self.model.add_var_tensor(self.prefs.shape, var_type=mip.BINARY, name="assignments")
         self.slots_per_person = self.assignments.sum(axis=0)
         self.persons_per_slot = self.assignments.sum(axis=1)
         self.experienced_per_slot = self.assignments @ self.exp_indicator
 
     def set_objective(self) -> None:
         self.discrepancy = self.assignments - self.prefs_np
-        self.model.setObjective(gb.quicksum(gb.quicksum(self.discrepancy * self.discrepancy)))
+        self.model.objective = mip.minimize(mip.xsum(d.item() for d in np.nditer(self.discrepancy, flags=["refs_ok"])))
     
     def set_constraints(self) -> None:
         self.constr_no_unavailable_slots()
@@ -64,40 +64,40 @@ class KDVModel:
         """Make sure that persons cannot be assigned to slots they are not available for."""
         for idx, val in np.ndenumerate(self.prefs_np):
             if val == 0:
-                self.model.addConstr(self.assignments[idx] == 0, f"unavail_{self.var_names[idx]}")
+                self.model += self.assignments[idx] == 0, f"unavail_{self.var_names[idx]}"
 
     def constr_slots_per_person(self) -> None:
         """Ensure that persons have at most slots_per_person_max slots assigned to them."""
         for i in range(len(self.person_names)):
-            self.model.addConstr(self.slots_per_person[i] <= self.config["slots_per_person_max"], name=f"maxslots_{self.person_names[i]}")
+            self.model += self.slots_per_person[i] <= self.config["slots_per_person_max"], f"maxslots_{self.person_names[i]}"
             
     def constr_persons_per_slot(self) -> None:
         """Ensure at least persons_per_slot_min and at most persons_per_slot_max persons per slot."""
         for i in range(len(self.slot_names)):
-            self.model.addConstr(self.persons_per_slot[i] >= self.config["persons_per_slot_min"], name=f"minpersons_{self.slot_names[i]}")
-            self.model.addConstr(self.persons_per_slot[i] <= self.config["persons_per_slot_max"], name=f"maxpersons_{self.slot_names[i]}")
+            self.model += self.persons_per_slot[i] >= self.config["persons_per_slot_min"], f"minpersons_{self.slot_names[i]}"
+            self.model += self.persons_per_slot[i] <= self.config["persons_per_slot_max"], f"maxpersons_{self.slot_names[i]}"
             
     def constr_experienced_persons(self) -> None:
         """Ensure at least min_experienced_persons of experienced persons per slot"""
         for i in range(len(self.slot_names)):
-            self.model.addConstr(self.experienced_per_slot[i] >= self.config["min_experienced_persons"], name=f"expperson_{self.slot_names[i]}")
+            self.model += self.experienced_per_slot[i] >= self.config["min_experienced_persons"], f"expperson_{self.slot_names[i]}"
 
     # Model convenience methods
     def optimize(self, *args, **kwargs) -> None: 
-        self.model.optimize(*args, **kwargs)
+        self.opt_status = self.model.optimize(*args, **kwargs)
         self.curtime = dt.today()
 
     def update(self, *args, **kwargs) -> None: 
         self.model.update(*args, **kwargs)
 
     def converged(self) -> bool:
-        return self.model.solcount > 0
+        return self.opt_status == mip.OptimizationStatus.OPTIMAL or self.opt_status == mip.OptimizationStatus.FEASIBLE
     
     # Model output methods
     def slot_schedule(self) -> pd.DataFrame:
         assert self.converged()
         res = self.prefs.copy()
-        res[:] = self.assignments.X
+        res[:] = np.reshape([v.item().x for v in np.nditer(self.assignments, flags=["refs_ok"])], self.assignments.shape) 
         return res
 
     def slot_desirability(self) -> pd.DataFrame:
